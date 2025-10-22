@@ -22,6 +22,9 @@ execute:
 
 ```{r}
 #| label: wd-1-csv-1
+# Lab 3
+
+data <- read.csv(here("week2", "lab3", "teacher_evals.csv"))
 
 ```
 
@@ -29,6 +32,8 @@ execute:
 
 ```{r}
 #| label: wd-1-csv-2
+# Lab 2
+surveys <- read_csv(here("week1", "lab2", "surveys.csv"))
 
 ```
 
@@ -36,7 +41,14 @@ execute:
 
 ```{r}
 #| label: wd-1-xlsx
+# PA 4
 
+military <- read_xlsx("gov_spending_per_capita.xlsx",
+                      sheet = "Share of Govt. spending",
+                      skip  = 7,
+                      n_max = 190,
+                      na = c("..", "xxx", ". .")
+                      )
 ```
 
 **WD-2: I can select necessary columns from a dataset.**
@@ -45,6 +57,16 @@ execute:
 
 ```{r}
 #| label: wd-2-ex-1
+# Lab 3 Question 5
+
+teacher_evals_clean <- data |>
+  rename(sex = gender) |>
+  filter(no_participants >= 10) |>
+  mutate(
+    across(c(teacher_id, course_id), as.character),
+    across(c(sex, academic_degree), as.factor)
+  ) |>
+  select(course_id, teacher_id, question_no, no_participants, resp_share, SET_score_avg, percent_failed_cur, academic_degree, seniority, sex)
 
 ```
 
@@ -52,13 +74,14 @@ execute:
 
 ```{r}
 #| label: wd-2-ex-2
-
+# revise one of select to use minus to remove instead
 ```
 
 -   Example selecting columns based on logical values (e.g., `starts_with()`, `ends_with()`, `contains()`, `where()`)
 
 ```{r}
 #| label: wd-2-ex-3
+# revise one to do this
 
 ```
 
@@ -68,6 +91,19 @@ execute:
 
 ```{r}
 #| label: wd-3-numeric-ex-1
+# Lab 3 Question 10
+
+teacher_evals_clean |>
+  filter(question_no == 901) |>
+  group_by(teacher_id) |>
+  summarize(
+    avg_q1 = mean(SET_score_avg, na.rm = TRUE),
+    n_courses = n_distinct(course_id),
+    .groups = "drop") |>
+  filter(n_courses >= 5) |>
+  filter(avg_q1 == max(avg_q1, na.rm = TRUE) |
+         avg_q1 == min(avg_q1, na.rm = TRUE)) |>
+  arrange(desc(avg_q1))
 
 ```
 
@@ -75,20 +111,60 @@ execute:
 
 ```{r}
 #| label: wd-3-numeric-ex-1
+# Lab 4 Question 5
 
+median_income_by_region <- ca_childcare |>
+  filter(study_year %in% c(2008, 2018)) |>
+  group_by(region, study_year) |>
+  summarise(
+    value = median(mhi_2018, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  pivot_wider(
+    names_from = study_year,
+    values_from = value
+  ) |>
+  arrange(desc(`2018`))
+
+median_income_by_region
 ```
 
 -   Character Example 1 (any context)
 
 ```{r}
 #| label: wd-3-character
+# Lab 5 
 
+w1 <- person |>
+  filter(str_detect(address_street_name,"Northwestern Dr")) |>
+  filter(address_number == max(address_number))
+
+w2 <- person |>
+  filter(str_detect(address_street_name,"Franklin Ave"),
+        str_detect(name,("^Annabel"))
+  )
+
+w1$name
+w2$name
 ```
 
 -   Character Example 2 (example must use functions from **stringr**)
 
 ```{r}
 #| label: wd-3-string
+# Lab 5
+
+w1 <- person |>
+  filter(str_detect(address_street_name,"Northwestern Dr")) |>
+  filter(address_number == max(address_number))
+
+w2 <- person |>
+  filter(str_detect(address_street_name,"Franklin Ave"),
+        str_detect(name,("^Annabel"))
+  )
+
+w1$name
+w2$name
 
 ```
 
@@ -96,6 +172,13 @@ execute:
 
 ```{r}
 #| label: wd-3-date
+# Lab 5
+
+
+gfn_checkins <- get_fit_now_check_in |>
+  filter(membership_id %in% gfn$id) |>
+  mutate(date = ymd(as.character(check_in_date)))|>
+  filter(date == ymd("20180109"))
 
 ```
 
@@ -119,6 +202,25 @@ execute:
 
 ```{r}
 #| label: wd-4-factor-ex-1
+#Lab 4 Question 7
+
+ca_childcare |>
+  select(region, county_name, study_year, mc_infant, mc_toddler, mc_preschool) |>
+  rename(
+    Infant = mc_infant,
+    Toddler = mc_toddler,
+    Preschool = mc_preschool
+  ) |>
+  pivot_longer(
+    c(Infant, Toddler, Preschool),
+    names_to = "age_group",
+    values_to = "median_weekly_price"
+  ) |>
+  mutate(
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool"),
+    region_label = str_remove(region, "Region"),
+    region_label = fct_reorder2(region_label, study_year, median_weekly_price)
+  )
 
 ```
 
@@ -126,6 +228,25 @@ execute:
 
 ```{r}
 #| label: wd-4-factor-ex-2
+#Lab 4 Question 7, probablt gonna change
+
+ca_childcare |>
+  select(region, county_name, study_year, mc_infant, mc_toddler, mc_preschool) |>
+  rename(
+    Infant = mc_infant,
+    Toddler = mc_toddler,
+    Preschool = mc_preschool
+  ) |>
+  pivot_longer(
+    c(Infant, Toddler, Preschool),
+    names_to = "age_group",
+    values_to = "median_weekly_price"
+  ) |>
+  mutate(
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool"),
+    region_label = str_remove(region, "Region"),
+    region_label = fct_reorder2(region_label, study_year, median_weekly_price)
+  )
 
 ```
 
@@ -133,6 +254,26 @@ execute:
 
 ```{r}
 #| label: wd-4-string
+#Lab 5, probably gonna change
+
+gfn <- get_fit_now_member |>
+  filter(str_detect(id, "^48Z"),
+         str_detect(membership_status,"gold"))
+
+gfn_checkins <- get_fit_now_check_in |>
+  filter(membership_id %in% gfn$id) |>
+  mutate(date = ymd(as.character(check_in_date)))|>
+  filter(date == ymd("20180109"))
+
+gfn_people <- gfn_checkins |>
+  inner_join(gfn, by = c("membership_id" = "id")) |>
+  inner_join(person, by = c("person_id" = "id")) 
+
+gfn_suspect <- gfn_people |>
+  inner_join(drivers_license, by = c("license_id" = "id")) |>
+  filter(str_detect(plate_number, "H42W"))
+
+gfn_suspect$name.x
 
 ```
 
@@ -140,6 +281,26 @@ execute:
 
 ```{r}
 #| label: wd-4-date
+# Lab 5 
+
+mastermind <- person |>
+  inner_join(drivers_license, by = c("license_id" = "id")) |>
+  filter(str_detect(hair_color,"red"),
+        height >= 65 & height <= 67,
+        str_detect(car_make,"Tesla"),
+        str_detect(car_model,"Model S")
+  ) |>
+
+  inner_join(facebook_event_checkin |>
+            filter(event_name == "SQL Symphony Concert") |>
+            mutate(date = ymd(date)) |>
+            filter(month(date) == 12, year(date) == 2017) |>
+            count(person_id) |>
+            filter(n == 3),
+            by = c("id" = "person_id")
+  )
+
+mastermind$name
 
 ```
 
