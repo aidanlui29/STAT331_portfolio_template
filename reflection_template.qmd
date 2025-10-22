@@ -57,7 +57,25 @@ military <- read_xlsx("gov_spending_per_capita.xlsx",
 
 ```{r}
 #| label: wd-2-ex-1
-# Lab 3 Question 5
+# Lab 4 Question 3
+
+tax_rev_join <- tax_rev |>
+  select(entity_name, year, total_property_taxes, sales_and_use_taxes)
+
+ca_childcare <- ca_childcare |>
+  left_join(
+    tax_rev_join,
+    by = c("county_name" = "entity_name", "study_year" = "year")
+  )
+
+ca_childcare
+```
+
+-   Example removing specified columns
+
+```{r}
+#| label: wd-2-ex-2
+# Lab 3 Question 5 Revised
 
 teacher_evals_clean <- data |>
   rename(sex = gender) |>
@@ -66,23 +84,39 @@ teacher_evals_clean <- data |>
     across(c(teacher_id, course_id), as.character),
     across(c(sex, academic_degree), as.factor)
   ) |>
-  select(course_id, teacher_id, question_no, no_participants, resp_share, SET_score_avg, percent_failed_cur, academic_degree, seniority, sex)
-
-```
-
--   Example removing specified columns
-
-```{r}
-#| label: wd-2-ex-2
-# revise one of select to use minus to remove instead
+    select(-c(
+    stud_grade_avg, stud_grade_std, stud_grade_var_coef,
+    percent_failed, stud_grade_avg_cur, stud_grade_std_cur,
+    stud_grade_var_coef_cur, class_duration, weekday, time_of_day,
+    SET_score_1sem, maximum_score, gender))
 ```
 
 -   Example selecting columns based on logical values (e.g., `starts_with()`, `ends_with()`, `contains()`, `where()`)
 
 ```{r}
 #| label: wd-2-ex-3
-# revise one to do this
+# Challenge 4
 
+ca_table <- ca_summary |>
+  summarize(
+    across(
+      starts_with(c("mc_", "mfcc_")), 
+      median,
+      na.rm = TRUE
+))
+
+ca_table <- tibble(
+  Age_Group = c("Infant", "Toddler", "Preschool"),
+  Center_Based_Median = scales::dollar(c(ca_table$mc_infant, ca_table$mc_toddler, ca_table$mc_preschool)),
+  Family_In_Home_Median = scales::dollar(c(ca_table$mfcc_infant, ca_table$mfcc_toddler,                                                                  ca_table$mfcc_preschool)),
+  Difference = scales::dollar(c(
+                              ca_table$mc_infant - ca_table$mfcc_infant,
+                              ca_table$mc_toddler - ca_table$mfcc_toddler,
+                              ca_table$mc_preschool - ca_table$mfcc_preschool)
+  )
+)
+
+ca_table
 ```
 
 **WD-3: I can filter rows from a dataframe for a *variety* of data types (e.g., numeric, integer, character, factor, date).**
@@ -174,12 +208,24 @@ w2$name
 #| label: wd-3-date
 # Lab 5
 
+gfn <- get_fit_now_member |>
+  filter(str_detect(id, "^48Z"),
+         str_detect(membership_status,"gold"))
 
 gfn_checkins <- get_fit_now_check_in |>
   filter(membership_id %in% gfn$id) |>
   mutate(date = ymd(as.character(check_in_date)))|>
   filter(date == ymd("20180109"))
 
+gfn_people <- gfn_checkins |>
+  inner_join(gfn, by = c("membership_id" = "id")) |>
+  inner_join(person, by = c("person_id" = "id")) 
+
+gfn_suspect <- gfn_people |>
+  inner_join(drivers_license, by = c("license_id" = "id")) |>
+  filter(str_detect(plate_number, "H42W"))
+
+gfn_suspect$name.x
 ```
 
 **WD-4: I can modify existing variables and create new variables in a dataframe for a *variety* of data types (e.g., numeric, integer, character, factor, date).**
@@ -188,7 +234,19 @@ gfn_checkins <- get_fit_now_check_in |>
 
 ```{r}
 #| label: wd-4-numeric-ex-1
+# Challenge 3 Question 1
 
+teacher_evals_compare <- data |>
+  filter(question_no == 903) |>
+  mutate(
+    set_level = if_else(SET_score_avg >= 4, "excellent", "standard"),
+    sen_level = case_when(
+      seniority <= 4 ~ "junior",
+      seniority >= 5 & seniority <= 8 ~ "senior",
+      seniority > 8 ~ "very senior"
+    )
+  ) |>
+  select(course_id, set_level, sen_level)
 ```
 
 -   Numeric Example 2
@@ -228,26 +286,34 @@ ca_childcare |>
 
 ```{r}
 #| label: wd-4-factor-ex-2
-#Lab 4 Question 7, probablt gonna change
+#Challenge 4
 
-ca_childcare |>
-  select(region, county_name, study_year, mc_infant, mc_toddler, mc_preschool) |>
-  rename(
-    Infant = mc_infant,
-    Toddler = mc_toddler,
-    Preschool = mc_preschool
-  ) |>
+plot_data <- ca_summary |>
+  select(mc_infant, mc_toddler, mc_preschool,
+         mfcc_infant, mfcc_toddler, mfcc_preschool) |>
   pivot_longer(
-    c(Infant, Toddler, Preschool),
+    cols = everything(),
     names_to = "age_group",
-    values_to = "median_weekly_price"
+    values_to = "weekly_price"
   ) |>
   mutate(
-    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool"),
-    region_label = str_remove(region, "Region"),
-    region_label = fct_reorder2(region_label, study_year, median_weekly_price)
+    age_group = recode(
+      age_group,
+      mc_infant = "Center_Infant",
+      mc_toddler = "Center_Toddler",
+      mc_preschool = "Center_Preschool",
+      mfcc_infant = "Family_Infant",
+      mfcc_toddler = "Family_Toddler",
+      mfcc_preschool = "Family_Preschool"
+    ),
+    setting = if_else(str_detect(age_group, "Center"), "Center-Based", "Family (In-Home)"),
+    age_group = case_when(
+      str_detect(age_group, "Infant") ~ "Infant",
+      str_detect(age_group, "Toddler") ~ "Toddler",
+      str_detect(age_group, "Preschool") ~ "Preschool"
+    ),
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool")
   )
-
 ```
 
 -   Character (example must use functions from **stringr**)
@@ -301,7 +367,6 @@ mastermind <- person |>
   )
 
 mastermind$name
-
 ```
 
 **WD-5: I can use mutating joins to combine multiple dataframes.**
@@ -310,6 +375,18 @@ mastermind$name
 
 ```{r}
 #| label: wd-5-left-ex-1
+# Lab 4 Question 3
+
+tax_rev_join <- tax_rev |>
+  select(entity_name, year, total_property_taxes, sales_and_use_taxes)
+
+ca_childcare <- ca_childcare |>
+  left_join(
+    tax_rev_join,
+    by = c("county_name" = "entity_name", "study_year" = "year")
+  )
+
+ca_childcare
 
 ```
 
@@ -317,6 +394,7 @@ mastermind$name
 
 ```{r}
 #| label: wd-5-right
+#none yet
 
 ```
 
@@ -331,6 +409,26 @@ mastermind$name
 
 ```{r}
 #| label: wd-5-inner-ex-1
+# Lab 5
+
+gfn <- get_fit_now_member |>
+  filter(str_detect(id, "^48Z"),
+         str_detect(membership_status,"gold"))
+
+gfn_checkins <- get_fit_now_check_in |>
+  filter(membership_id %in% gfn$id) |>
+  mutate(date = ymd(as.character(check_in_date)))|>
+  filter(date == ymd("20180109"))
+
+gfn_people <- gfn_checkins |>
+  inner_join(gfn, by = c("membership_id" = "id")) |>
+  inner_join(person, by = c("person_id" = "id")) 
+
+gfn_suspect <- gfn_people |>
+  inner_join(drivers_license, by = c("license_id" = "id")) |>
+  filter(str_detect(plate_number, "H42W"))
+
+gfn_suspect$name.x
 
 ```
 
@@ -338,6 +436,14 @@ mastermind$name
 
 ```{r}
 #| label: wd-5-inner-ex-2
+# Lab 4 Question 2 
+
+ca_childcare <- childcare_costs |>
+  inner_join(counties, by = "county_fips_code") |>
+  filter(state_name == "California") |>
+  arrange(county_fips_code, study_year)
+
+ca_childcare
 
 ```
 
