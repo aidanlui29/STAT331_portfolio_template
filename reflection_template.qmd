@@ -150,7 +150,7 @@ teacher_evals_clean |>
 median_income_by_region <- ca_childcare |>
   filter(study_year %in% c(2008, 2018)) |>
   group_by(region, study_year) |>
-  summarise(
+  summarize(
     value = median(mhi_2018, na.rm = TRUE),
     .groups = "drop"
   ) |>
@@ -402,6 +402,11 @@ ca_childcare
 
 ```{r}
 #| label: wd-5-left-right-ex-2
+# Challenge 4
+
+ca_summary <- childcare_costs |>
+  left_join(counties, by = "county_fips_code") |>
+  filter(state_name == "California") 
 
 ```
 
@@ -453,6 +458,14 @@ ca_childcare
 
 ```{r}
 #| label: wd-6-semi
+# Lab 5
+
+witness_ids <- c(w1$id, w2$id) 
+
+witness_interviews <- interview |>
+  semi_join(tibble(person_id = c(w1$id, w2$id)), by = "person_id")
+
+witness_interviews$transcript
 
 ```
 
@@ -460,7 +473,25 @@ ca_childcare
 
 ```{r}
 #| label: wd-6-anti
+# Lab 5 Revised
 
+gfn_checkins <- get_fit_now_check_in |>
+  anti_join(get_fit_now_member |> 
+              filter(!str_detect(id, "^48Z") | !str_detect(membership_status, "gold")) |> 
+              select(id),
+            by = c("membership_id" = "id")) |>
+  mutate(date = ymd(as.character(check_in_date)))|>
+  filter(date == ymd("20180109"))
+
+gfn_people <- gfn_checkins |>
+  inner_join(gfn, by = c("membership_id" = "id")) |>
+  inner_join(person, by = c("person_id" = "id")) 
+
+gfn_suspect <- gfn_people |>
+  inner_join(drivers_license, by = c("license_id" = "id")) |>
+  filter(str_detect(plate_number, "H42W"))
+
+gfn_suspect$name.x
 ```
 
 **WD-7: I can pivot dataframes from long to wide and visa versa**
@@ -469,6 +500,24 @@ ca_childcare
 
 ```{r}
 #| label: wd-7-long
+# Lab 4 Question 7
+
+ca_childcare |>
+  select(region, county_name, study_year, mc_infant, mc_toddler, mc_preschool) |>
+  rename(
+    Infant = mc_infant,
+    Toddler = mc_toddler,
+    Preschool = mc_preschool
+  ) |>
+  pivot_longer(
+    c(Infant, Toddler, Preschool),
+    names_to = "age_group",
+    values_to = "median_weekly_price"
+  ) |>
+  mutate(
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool"),
+    region_label = str_remove(region, "Region"),
+    region_label = fct_reorder2(region_label, study_year, median_weekly_price))
 
 ```
 
@@ -476,6 +525,22 @@ ca_childcare
 
 ```{r}
 #| label: wd-7-wide
+# Lab 4 Question 5
+
+median_income_by_region <- ca_childcare |>
+  filter(study_year %in% c(2008, 2018)) |>
+  group_by(region, study_year) |>
+  summarize(
+    value = median(mhi_2018, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  pivot_wider(
+    names_from = study_year,
+    values_from = value
+  ) |>
+  arrange(desc(`2018`))
+
+median_income_by_region
 
 ```
 
@@ -497,7 +562,69 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: r-2-1
+# Challenge 4
 
+#| label: creating-a-plot
+#| fig-width: 11
+#| fig-height: 5
+
+plot_data <- ca_summary |>
+  select(mc_infant, mc_toddler, mc_preschool,
+         mfcc_infant, mfcc_toddler, mfcc_preschool) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "age_group",
+    values_to = "weekly_price"
+  ) |>
+  mutate(
+    age_group = recode(
+      age_group,
+      mc_infant = "Center_Infant",
+      mc_toddler = "Center_Toddler",
+      mc_preschool = "Center_Preschool",
+      mfcc_infant = "Family_Infant",
+      mfcc_toddler = "Family_Toddler",
+      mfcc_preschool = "Family_Preschool"
+    ),
+    setting = if_else(str_detect(age_group, "Center"), "Center-Based", "Family (In-Home)"),
+    age_group = case_when(
+      str_detect(age_group, "Infant") ~ "Infant",
+      str_detect(age_group, "Toddler") ~ "Toddler",
+      str_detect(age_group, "Preschool") ~ "Preschool"
+    ),
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool")
+  )
+
+custom_colors <- colorRampPalette(brewer.pal(8, "Accent"))(10)
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
 ```
 
 -   Example of **dplyr** pipeline
@@ -505,12 +632,40 @@ The following assignments satisfy the above criteria:
 ```{r}
 #| label: r-2-2
 
+plot_data <- ca_summary |>
+  select(mc_infant, mc_toddler, mc_preschool,
+         mfcc_infant, mfcc_toddler, mfcc_preschool) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "age_group",
+    values_to = "weekly_price"
+  ) |>
+  mutate(
+    age_group = recode(
+      age_group,
+      mc_infant = "Center_Infant",
+      mc_toddler = "Center_Toddler",
+      mc_preschool = "Center_Preschool",
+      mfcc_infant = "Family_Infant",
+      mfcc_toddler = "Family_Toddler",
+      mfcc_preschool = "Family_Preschool"
+    ),
+    setting = if_else(str_detect(age_group, "Center"), "Center-Based", "Family (In-Home)"),
+    age_group = case_when(
+      str_detect(age_group, "Infant") ~ "Infant",
+      str_detect(age_group, "Toddler") ~ "Toddler",
+      str_detect(age_group, "Preschool") ~ "Preschool"
+    ),
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool")
+  )
+
 ```
 
 -   Example of function formatting
 
 ```{r}
 #| label: r-2-3
+# none yet
 
 ```
 
@@ -520,6 +675,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: r-3-example
+# none yet
 
 ```
 
@@ -527,6 +683,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: r-3-function-stops
+# none yet
 
 ```
 
@@ -538,6 +695,69 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-1-num
+# Challenge 4
+
+#| label: creating-a-plot
+#| fig-width: 11
+#| fig-height: 5
+
+plot_data <- ca_summary |>
+  select(mc_infant, mc_toddler, mc_preschool,
+         mfcc_infant, mfcc_toddler, mfcc_preschool) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "age_group",
+    values_to = "weekly_price"
+  ) |>
+  mutate(
+    age_group = recode(
+      age_group,
+      mc_infant = "Center_Infant",
+      mc_toddler = "Center_Toddler",
+      mc_preschool = "Center_Preschool",
+      mfcc_infant = "Family_Infant",
+      mfcc_toddler = "Family_Toddler",
+      mfcc_preschool = "Family_Preschool"
+    ),
+    setting = if_else(str_detect(age_group, "Center"), "Center-Based", "Family (In-Home)"),
+    age_group = case_when(
+      str_detect(age_group, "Infant") ~ "Infant",
+      str_detect(age_group, "Toddler") ~ "Toddler",
+      str_detect(age_group, "Preschool") ~ "Preschool"
+    ),
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool")
+  )
+
+custom_colors <- colorRampPalette(brewer.pal(8, "Accent"))(10)
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
 
 ```
 
@@ -545,13 +765,29 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-2-num-cat
+# Lab 2 Question 16
 
+ggplot(data = surveys,
+       mapping = aes(x = weight, y = species)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(
+    color = "darkred",
+    alpha = 0.5,
+    width = 0.2
+  ) +
+    labs(
+      x = "Weight of Individuals (grams)",
+      y = "Species",
+      title = "Distribution of Individual Weights Across Species"
+    ) +
+    theme_bw()
 ```
 
 -   At least two categorical variables
 
 ```{r}
 #| label: dvs-2-cat
+# none yet
 
 ```
 
@@ -559,6 +795,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-2-date
+# none yet
 
 ```
 
@@ -568,13 +805,73 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-2-ex-1
+# Lab 4 Question 7
 
+#| fig-width: 11
+#| fig-height: 6
+
+ca_childcare |>
+  select(region, county_name, study_year, mc_infant, mc_toddler, mc_preschool) |>
+  rename(
+    Infant = mc_infant,
+    Toddler = mc_toddler,
+    Preschool = mc_preschool
+  ) |>
+  pivot_longer(
+    c(Infant, Toddler, Preschool),
+    names_to = "age_group",
+    values_to = "median_weekly_price"
+  ) |>
+  mutate(
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool"),
+    region_label = str_remove(region, "Region"),
+    region_label = fct_reorder2(region_label, study_year, median_weekly_price)
+  ) |>
+  ggplot(aes(study_year, median_weekly_price, color = region_label)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(span = 0.9) +
+  facet_wrap(~ age_group, ncol = 3) +
+  scale_x_continuous(breaks = seq(2008, 2018, 2), limits = c(2008, 2018)) +
+  scale_y_continuous(breaks = seq(100, 500, 100), limits = c(100, 500)) +
+  labs(
+    title = "Weekly Median Price for Center-Based Childcare",
+    x = "Study Year",
+    y = "Weekly Median Price",
+    color = "California"
+  ) +
+  theme_minimal() +
+  theme(
+    aspect.ratio = 1,
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA, size = 0.6),
+    strip.background = element_rect(
+      fill = "grey85", color = "grey50", size = 0.6)
+  )
 ```
 
 -   I can modify my colors to be accessible to anyone's eyes
 
 ```{r}
 #| label: dvs-2-ex-2
+# Challenge 2 Hot Revised
+
+ggplot(data = surveys,
+       mapping = aes(x = weight, y = species, color = sex)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 0.5, width = 0, height = 0.15) +
+  labs(
+    x = "Weight of Individuals (grams)",
+    y = "Species",
+    title = "Distribution of Weights Across Species of Rodents by Sex",
+    subtitle = "Colored by <span style='color:#0072B2;'>Male</span> and <span   style='color:#E69F00;'>Female</span>"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(hjust = 1),
+    legend.position = "none",
+    plot.subtitle = element_markdown()
+  ) +
+  scale_color_manual(values = c("M" = "#0072B2", "F" = "#E69F00"))
 
 ```
 
@@ -582,6 +879,36 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-2-ex-3
+# Challenge 4
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
 
 ```
 
@@ -589,6 +916,37 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-2-ex-4
+# Challenge 4
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
+
 
 ```
 
@@ -596,6 +954,48 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-2-ex-5
+# Lab 4 Question 7
+
+#| fig-width: 11
+#| fig-height: 6
+
+ca_childcare |>
+  select(region, county_name, study_year, mc_infant, mc_toddler, mc_preschool) |>
+  rename(
+    Infant = mc_infant,
+    Toddler = mc_toddler,
+    Preschool = mc_preschool
+  ) |>
+  pivot_longer(
+    c(Infant, Toddler, Preschool),
+    names_to = "age_group",
+    values_to = "median_weekly_price"
+  ) |>
+  mutate(
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool"),
+    region_label = str_remove(region, "Region"),
+    region_label = fct_reorder2(region_label, study_year, median_weekly_price)
+  ) |>
+  ggplot(aes(study_year, median_weekly_price, color = region_label)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(span = 0.9) +
+  facet_wrap(~ age_group, ncol = 3) +
+  scale_x_continuous(breaks = seq(2008, 2018, 2), limits = c(2008, 2018)) +
+  scale_y_continuous(breaks = seq(100, 500, 100), limits = c(100, 500)) +
+  labs(
+    title = "Weekly Median Price for Center-Based Childcare",
+    x = "Study Year",
+    y = "Weekly Median Price",
+    color = "California"
+  ) +
+  theme_minimal() +
+  theme(
+    aspect.ratio = 1,
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA, size = 0.6),
+    strip.background = element_rect(
+      fill = "grey85", color = "grey50", size = 0.6)
+  )
 
 ```
 
@@ -605,6 +1005,36 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-3-1-ex-1
+#Challenge 4
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
 
 ```
 
@@ -612,6 +1042,32 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-3-1-ex-2
+#Challenge 2 Medium Revised
+
+colors <- colorRampPalette(brewer.pal(8, "Accent"))(10)
+
+ggplot(data = surveys, mapping = aes(x = weight, y = species, color = sex)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.8) +
+  geom_jitter(
+    aes(color = sex),
+    width = 0.2,
+    alpha = 0.5,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(values = c("M" = colors[5], "F" = colors[8])) +
+  labs(
+    x = "Body Mass (grams)",
+    y = "Species",
+    title = "Weight Distribution Across Species of Rodents"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_text(size = 10),
+    plot.title = element_text(face = "bold", size = 13, hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color = "black", size = 1)
+  )
 
 ```
 
@@ -619,6 +1075,36 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-3-2
+# Challenge 4
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
 
 ```
 
@@ -626,6 +1112,36 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-3-3
+# Challenge 4
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
 
 ```
 
@@ -635,13 +1151,41 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-4-summarize
+# Lab 3 Question 7
 
+instructor_demo <- teacher_evals_clean |>
+  distinct(teacher_id, .keep_all = TRUE) |>
+  select(teacher_id, academic_degree, seniority, sex)
+
+instructor_demo |>
+  count(academic_degree)
+
+instructor_demo |>
+  summarize(
+    avg_seniority = mean(seniority, na.rm = TRUE),
+    min_seniority = min(seniority, na.rm = TRUE),
+    max_seniority = max(seniority, na.rm = TRUE)
+  )
+
+instructor_demo |>
+  count(sex)
 ```
 
 -   Example using `across()`
 
 ```{r}
 #| label: dvs-4-across
+# Lab 3 Question 5
+
+teacher_evals_clean <- data |>
+  rename(sex = gender) |>
+  filter(no_participants >= 10) |>
+  mutate(
+    across(c(teacher_id, course_id), as.character),
+    across(c(sex, academic_degree), as.factor)
+  ) |>
+  select(course_id, teacher_id, question_no, no_participants, resp_share, SET_score_avg, percent_failed_cur, academic_degree, seniority, sex)
+
 
 ```
 
@@ -651,13 +1195,41 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-5-1
+# Lab 4 Question 5
 
+median_income_by_region <- ca_childcare |>
+  filter(study_year %in% c(2008, 2018)) |>
+  group_by(region, study_year) |>
+  summarise(
+    value = median(mhi_2018, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  pivot_wider(
+    names_from = study_year,
+    values_from = value
+  ) |>
+  arrange(desc(`2018`))
+
+median_income_by_region
 ```
 
 -   Example 2
 
 ```{r}
 #| label: dvs-5-2
+# Lab Question 12
+
+teacher_evals_clean |>
+  filter(academic_degree %in% c("dr", "prof")) |>
+  group_by(teacher_id, seniority, sex) |>
+  summarize(
+    avg_resp = mean(resp_share, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  filter(avg_resp == max(avg_resp, na.rm = TRUE) |
+         avg_resp == min(avg_resp, na.rm = TRUE)) |>
+  arrange(desc(avg_resp))
+
 
 ```
 
@@ -667,21 +1239,54 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-6-ex-1
+# Challenge 4
 
+ca_table <- ca_summary |>
+  summarize(
+    across(
+      starts_with(c("mc_", "mfcc_")), 
+      median,
+      na.rm = TRUE
+))
+
+ca_table <- tibble(
+  Age_Group = c("Infant", "Toddler", "Preschool"),
+  Center_Based_Median = scales::dollar(c(ca_table$mc_infant, ca_table$mc_toddler, ca_table$mc_preschool)),
+  Family_In_Home_Median = scales::dollar(c(ca_table$mfcc_infant, ca_table$mfcc_toddler,                                                                  ca_table$mfcc_preschool)),
+  Difference = scales::dollar(c(
+                              ca_table$mc_infant - ca_table$mfcc_infant,
+                              ca_table$mc_toddler - ca_table$mfcc_toddler,
+                              ca_table$mc_preschool - ca_table$mfcc_preschool)
+  )
+)
+
+ca_table
 ```
 
 -   I can modify the text in my table to be more readable (e.g., bold face for column headers)
 
 ```{r}
 #| label: dvs-6-ex-2
-
+# none yet
 ```
 
 -   I can arrange my table to have an intuitive ordering
 
 ```{r}
 #| label: dvs-6-ex-3
+# Lab 3 Question 10
 
+teacher_evals_clean |>
+  filter(question_no == 901) |>
+  group_by(teacher_id) |>
+  summarize(
+    avg_q1 = mean(SET_score_avg, na.rm = TRUE),
+    n_courses = n_distinct(course_id),
+    .groups = "drop") |>
+  filter(n_courses >= 5) |>
+  filter(avg_q1 == max(avg_q1, na.rm = TRUE) |
+         avg_q1 == min(avg_q1, na.rm = TRUE)) |>
+  arrange(desc(avg_q1))
 ```
 
 **DVS-7: I show creativity in my tables.**
@@ -690,13 +1295,29 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dvs-7-ex-1
-
+# none yet
 ```
 
 -   I can modify the layout of my table to be more readable (e.g., `pivot_longer()` or `pivot_wider()`)
 
 ```{r}
 #| label: dvs-7-ex-2
+# Lab 4 Question 5
+
+median_income_by_region <- ca_childcare |>
+  filter(study_year %in% c(2008, 2018)) |>
+  group_by(region, study_year) |>
+  summarise(
+    value = median(mhi_2018, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  pivot_wider(
+    names_from = study_year,
+    values_from = value
+  ) |>
+  arrange(desc(`2018`))
+
+median_income_by_region
 
 ```
 
@@ -708,13 +1329,40 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-1-one-call
+# Lab 4 Question 7
 
+ca_childcare |>
+  select(region, county_name, study_year, mc_infant, mc_toddler, mc_preschool) |>
+  rename(
+    Infant = mc_infant,
+    Toddler = mc_toddler,
+    Preschool = mc_preschool
+  ) |>
+  pivot_longer(
+    c(Infant, Toddler, Preschool),
+    names_to = "age_group",
+    values_to = "median_weekly_price"
+  ) |>
+  mutate(
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool"),
+    region_label = str_remove(region, "Region"),
+    region_label = fct_reorder2(region_label, study_year, median_weekly_price))
 ```
 
 -   using `across()`
 
 ```{r}
 #| label: pe-1-across
+# Lab 3 Question 5
+
+teacher_evals_clean <- data |>
+  rename(sex = gender) |>
+  filter(no_participants >= 10) |>
+  mutate(
+    across(c(teacher_id, course_id), as.character),
+    across(c(sex, academic_degree), as.factor)
+  ) |>
+  select(course_id, teacher_id, question_no, no_participants, resp_share, SET_score_avg, percent_failed_cur, academic_degree, seniority, sex)
 
 ```
 
@@ -722,6 +1370,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-1-map-1
+# none yet
 
 ```
 
@@ -731,6 +1380,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-2-1
+# none yet
 
 ```
 
@@ -738,6 +1388,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-2-2
+# none yet
 
 ```
 
@@ -745,6 +1396,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-2-3
+# none yet
 
 ```
 
@@ -754,6 +1406,15 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-3-across
+# Challenge 4
+
+ca_table <- ca_summary |>
+  summarize(
+    across(
+      starts_with(c("mc_", "mfcc_")), 
+      median,
+      na.rm = TRUE
+))
 
 ```
 
@@ -761,6 +1422,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-3-map-1
+# none yet
 
 ```
 
@@ -768,7 +1430,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-3-map-2
-
+# none yet
 ```
 
 **PE-4: I can use modern tools when carrying out my analysis.**
@@ -777,6 +1439,19 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-4-1
+# Lab 5
+
+w1 <- person |>
+  filter(str_detect(address_street_name,"Northwestern Dr")) |>
+  filter(address_number == max(address_number))
+
+w2 <- person |>
+  filter(str_detect(address_street_name,"Franklin Ave"),
+        str_detect(name,("^Annabel"))
+  )
+
+w1$name
+w2$name
 
 ```
 
@@ -784,6 +1459,68 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: pe-4-2
+#Challenge 4
+
+#| fig-width: 11
+#| fig-height: 5
+
+plot_data <- ca_summary |>
+  select(mc_infant, mc_toddler, mc_preschool,
+         mfcc_infant, mfcc_toddler, mfcc_preschool) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "age_group",
+    values_to = "weekly_price"
+  ) |>
+  mutate(
+    age_group = recode(
+      age_group,
+      mc_infant = "Center_Infant",
+      mc_toddler = "Center_Toddler",
+      mc_preschool = "Center_Preschool",
+      mfcc_infant = "Family_Infant",
+      mfcc_toddler = "Family_Toddler",
+      mfcc_preschool = "Family_Preschool"
+    ),
+    setting = if_else(str_detect(age_group, "Center"), "Center-Based", "Family (In-Home)"),
+    age_group = case_when(
+      str_detect(age_group, "Infant") ~ "Infant",
+      str_detect(age_group, "Toddler") ~ "Toddler",
+      str_detect(age_group, "Preschool") ~ "Preschool"
+    ),
+    age_group = fct_relevel(age_group, "Infant", "Toddler", "Preschool")
+  )
+
+custom_colors <- colorRampPalette(brewer.pal(8, "Accent"))(10)
+
+ggplot(plot_data, aes(x = age_group, y = weekly_price, fill = age_group)) +
+  geom_violin(trim = TRUE, alpha = 0.8, linewidth = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.45, color = "black", linewidth = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = scales::dollar(after_stat(y))),
+               vjust = -0.6, size = 3, color = "black") +
+  facet_wrap(~ setting, ncol = 2) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_fill_manual(values = custom_colors) +   
+  scale_color_manual(values = custom_colors) +
+  labs(
+    title = "Distribution of Full-Time Weekly Childcare Costs in California (2008–2018)",
+    subtitle = "Violin shows distribution shape; bold line and label mark the median",
+    x = "Age Group of Children",
+    y = "Full-Time Weekly Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(color = "grey60", fill = NA, linewidth = 0.7),
+    strip.background = element_rect(fill = "grey95", color = "grey70"),
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(face = "italic", color = "grey30"),
+    axis.title = element_text(face = "bold"),
+    axis.line = element_line(color = "grey60"),
+    panel.grid.minor = element_blank()
+  )
 
 ```
 
@@ -795,6 +1532,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dsm-1-1
+# none yet
 
 ```
 
@@ -802,6 +1540,7 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dsm-1-2
+# none yet
 
 ```
 
@@ -811,6 +1550,10 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dsm-2-1
+# Challenge 2 Question 17
+
+species_mod <- aov(weight ~ species, data = surveys)
+summary(species_mod)
 
 ```
 
@@ -818,6 +1561,10 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dsm-2-2
+# Challenge 3 Question 3
+
+tbl <- table(teacher_evals_compare$set_level, teacher_evals_compare$sen_level)
+chisq.test(tbl)
 
 ```
 
@@ -825,7 +1572,17 @@ The following assignments satisfy the above criteria:
 
 ```{r}
 #| label: dsm-2-3
+# Lab 4 Question 9
 
+reg_data <- ca_childcare |>
+  filter(!is.na(mc_infant), !is.na(mhi_2018))
+
+reg_mod1 <- lm(
+  mc_infant ~ mhi_2018,
+  data = reg_data
+)
+
+summary(reg_mod1)
 ```
 
 ## Revising My Thinking
@@ -834,12 +1591,23 @@ The following assignments satisfy the above criteria:
 
 <!-- For the revisions included in your Portfolio, to help me understand the nature of your revisions, please denote somehow the feedback I provided you (e.g., boldface, italics, colored text) before your revisions. -->
 
+I revised my thinking by doing every revision for the labs and challenges and wrote a reflection for every chunk of code that I revised, no matter how small the fix was. Writing down what I changed helped the ideas stick because I wasn’t just fixing things, I was thinking about why they needed fixing. It also made me notice patterns in the mistakes I made, so I could avoid them in the future. Over time I started catching those issues before anyone even pointed them out. Doing this over and over made my code cleaner, and it helped me understand what good, consistent code should look like.
+
 ## Extending My Thinking
 
 <!-- How did you extended your thinking throughout the course? How did you extend your thinking on the code examples you have provided in your portfolio? -->
+
+Throughout this course I have extended my thinking by not just understanding what was taught in class but going out of my way to look up potentially new or even better functions when the current functions I was using looked to repetitive or didn't an output to my liking. I paid attention to all the feedback that was giving to me through my graded assignments and code reviews. I always took into consideration and immediately went to fix my code while ideas were still fresh in my head. I even started to care not only about if the code ran but how it looked and read to other people especially small details like naimg convention for my variables.
 
 ## Peer Support & Collaboration
 
 <!-- Include an image or a description of feedback you gave that you are proud of (either in a peer review or in Discord). -->
 
 <!-- Include a description of how you grew as a collaborator through the weekly pair programming activities.   -->
+
+This is my feedback that I am proud of, from Lab 5:
+One thing that you did really well is keeping your code clear and easy to read. Each step builds nicely on the previous one, and you did a great job using line breaks after each pipe to make your workflow organized. The alignment of arguments inside functions like mutate() (for example, lining up is8, date_chr, and date_std) makes your logic easy to follow and shows strong attention to structure. The spacing between chunks also helps separate the major steps in your process, which makes it simple to see how the data is being transformed at each stage. Overall, the layout looks clean, deliberate, and professional.
+
+One thing you can improve in code formatting is simplifying the syntax now that tidyverse automatically loads dplyr and lubridate. There’s no need to write dplyr::filter() or lubridate::year() since those functions are already available when using tidyverse. Removing the :: calls would make your pipelines cleaner and more consistent with tidyverse style. You can also make your filtering step more efficient by using the ymd() function instead of calling year(), month(), and day()
+
+Doing peer reviews and paired programming helped me get better at communicating my ideas and talking through problems with other people. It made me realize that my way of thinking was sometimes too straightforward and inefficient. Hearing how other people approached problems gave me a new way of thinking of ideas. Listening to others allowed to come up with more creative ideas when I was working on my own.
