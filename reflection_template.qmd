@@ -394,7 +394,19 @@ ca_childcare
 
 ```{r}
 #| label: wd-5-right
-#none yet
+# Lab 5 Revised
+
+witness_info <- person |>
+  filter(
+    (address_street_name == "Northwestern Dr" &
+     address_number == max(address_number)) |
+    (str_detect(name, "Annabel") &
+     address_street_name == "Franklin Ave")
+  ) |>
+  right_join(interview, by = c("id" = "person_id")) |>
+  filter(!is.na(name))
+
+witness_info$name
 
 ```
 
@@ -1605,8 +1617,7 @@ Throughout this course I have extended my thinking by not just understanding wha
 
 <!-- Include a description of how you grew as a collaborator through the weekly pair programming activities.   -->
 
-This is my feedback that I am proud of, from Lab 5:
-One thing that you did really well is keeping your code clear and easy to read. Each step builds nicely on the previous one, and you did a great job using line breaks after each pipe to make your workflow organized. The alignment of arguments inside functions like mutate() (for example, lining up is8, date_chr, and date_std) makes your logic easy to follow and shows strong attention to structure. The spacing between chunks also helps separate the major steps in your process, which makes it simple to see how the data is being transformed at each stage. Overall, the layout looks clean, deliberate, and professional.
+This is my feedback that I am proud of, from Lab 5: One thing that you did really well is keeping your code clear and easy to read. Each step builds nicely on the previous one, and you did a great job using line breaks after each pipe to make your workflow organized. The alignment of arguments inside functions like mutate() (for example, lining up is8, date_chr, and date_std) makes your logic easy to follow and shows strong attention to structure. The spacing between chunks also helps separate the major steps in your process, which makes it simple to see how the data is being transformed at each stage. Overall, the layout looks clean, deliberate, and professional.
 
 One thing you can improve in code formatting is simplifying the syntax now that tidyverse automatically loads dplyr and lubridate. There’s no need to write dplyr::filter() or lubridate::year() since those functions are already available when using tidyverse. Removing the :: calls would make your pipelines cleaner and more consistent with tidyverse style. You can also make your filtering step more efficient by using the ymd() function instead of calling year(), month(), and day()
 
