@@ -5,7 +5,7 @@ format: html
 embed-resources: true
 layout: margin-left
 editor: visual
-execute: 
+execute:
   eval: false
   echo: true
 ---
