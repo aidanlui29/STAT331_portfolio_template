@@ -1,6 +1,6 @@
 ---
 title: "STAT 331 Portfolio"
-author: "Aidan Lui"
+author: "Aidan Lui1"
 format: html 
 embed-resources: true
 layout: margin-left
