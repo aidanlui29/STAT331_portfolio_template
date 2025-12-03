@@ -1,21 +1,26 @@
 ---
 title: "Lightening Round Essays"
+author: "Aidan Lui"
 format: html
 editor: visual
 ---
 
 **Answer each of the following questions with *one sentence* including a brief explanation.**
 
-1. Finish the sentence with another student’s name: "If [Name of Student] doesn’t earn an A, then nobody should, because..." Explain your choice and your reasoning.
+1.  Finish the sentence with another student’s name: "If \[Name of Student\] doesn’t earn an A, then nobody should, because..." Explain your choice and your reasoning.
 
+2.  What was the most difficult part of the class for you? List a general topic, a specific problem, a kind of work we did, etc. and explain why.
 
-2. What was the most difficult part of the class for you? List a general topic, a specific problem, a kind of work we did, etc. and explain why.
+3.  What was the easiest part of the class for you? Explain why.
 
+4.  What part of the class surprised or interested you the most? Explain why.
 
-3. What was the easiest part of the class for you? Explain why.
+5.  Give one piece of advice to a student just beginning a quarter of STAT 331 that will help them be successful in learning.
 
+<!-- -->
 
-4. What part of the class surprised or interested you the most? Explain why.
-
-
-5. Give one piece of advice to a student just beginning a quarter of STAT 331 that will help them be successful in learning.
+1.  If Tyler doesn't earn an A, then nobody should, because he always showed a strong understanding of the material and explained very clearly when helping the people sitting around him. He would always walk through the steps with us and in my opinion helped me a lot with understanding. On top of that, when I was partnered with him during PAs, he guided me through parts I didn't understand and helped me see the logic behind the code without just blatantly telling me the answer. From the time I worked with him I can see that he has a very good understanding of all the material and deep passion for statistical computing.
+2.  The most difficult part of the class was when we first started learning about pivots, mutates, and joins. No matter how long I stared at the code or how many examples I saw, I could understand how everything connected or why my output looked completely different than what I expected. On top of that, trying to make my code more efficient and thinking past just my initial idea. However once I found my flow, the rest of the class became a lot more manageable, but the learning curve was the most difficult part for me.
+3.  The easiest part of the class for me was the general syntax and keep my code readable and organized. Since I already have experience with Python and other programming languages, the structure of writing clean code came pretty easy to me. Lining things up, using correct spacing, and keeping everything clear was something I didn't have to put much thought into, so that part was the easiest for me.
+4.  The part that surprised me the most about this class was how much working with a partner really helped me. I didn't think that peer reviews and partner programming were gonna really matter much but seeing how other people solved the same problem helped me learn more efficiently. Sometimes I would be stuck on my own idea and then someone would explain their steps to me and it would click. It really helped me think more creatively and clearly.
+5.  One piece of advice I would give to a student is to not take any shortcuts. Everything in the class kind of builds off what is learned before so it is very important to really understand what is going on or else you will find yourself getting lost really fast. Even if it feels slow at first, taking the time to actually understand the code can help a lot later on.
