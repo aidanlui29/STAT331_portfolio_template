@@ -32,6 +32,7 @@ data <- read.csv(here("week2", "lab3", "teacher_evals.csv"))
 ```{r}
 #| label: wd-1-csv-2
 # Lab 2
+
 surveys <- read_csv(here("week1", "lab2", "surveys.csv"))
 ```
 
